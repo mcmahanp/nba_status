@@ -1,0 +1,26 @@
+# ignore data and output files
+data
+output
+models
+
+# nix
+result
+
+
+# Other files (from https://github.com/github/gitignore)
+
+# Byte-compiled / optimized / DLL files (python)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# History files (R)
+.Rhistory
+.Rapp.history
+
+# Session Data files (R)
+.RData
+.RDataTmp
+
+# User-specific files (R)
+.Ruserdata
