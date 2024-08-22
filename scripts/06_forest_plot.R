@@ -30,6 +30,8 @@ cum_estimates <- sapply(ame, function(m){
 
 # simple forest plot
 forestplot <- function(ests, main = '', sorted = TRUE){
+    # `ests` is a matrix with one row for each estimate.
+    # columns represent center, left bound, right bound.
     if(sorted)(
         ests <- ests[,order(ests[1,])]
     )
@@ -59,6 +61,7 @@ forestplot <- function(ests, main = '', sorted = TRUE){
     }
 
     # point estimates
+    # (black marker with white marker over it)
     points(ests[1,], seq(npars), pch = 18, cex = 3)
     points(ests[1,], seq(npars), pch = 18, cex = 1.5, col = 'white')
 

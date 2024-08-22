@@ -5,6 +5,7 @@ library(margins) # AME
 library(sandwich)
 library(glue) # for easy string literals in model specification
 library(modelsummary)
+library(lme4) # for random effects model
 
 ####
 # Load data and define paths
@@ -469,15 +470,54 @@ corr_fits$m6 <- glm.cluster(
     m6_corr, data = dta_comm[complete_comm2],
     family = "binomial", cluster = "player_id"
 )
-corr_ames$f6 <- margins(corr_fits$m6$glm_res, vcov = corr_fits$m6$vcov,
+corr_ames$m6 <- margins(corr_fits$m6$glm_res, vcov = corr_fits$m6$vcov,
     variables = c("all_star_t_1", "all_star_cum_t_1"), data = dta_comm[complete_comm2][season>1985],
     change = c(0, 1)
 )
-table3_sbs[11, 4] <- summary(corr_ames$f6)$AME[2]
-table3_sbs[12, 4] <- summary(corr_ames$f6)$SE[2]
-table3_sbs[11, 5] <- summary(corr_ames$f6)$AME[1]
-table3_sbs[12, 5] <- summary(corr_ames$f6)$SE[1]
+table3_sbs[11, 4] <- summary(corr_ames$m6)$AME[2]
+table3_sbs[12, 4] <- summary(corr_ames$m6)$SE[2]
+table3_sbs[11, 5] <- summary(corr_ames$m6)$AME[1]
+table3_sbs[12, 5] <- summary(corr_ames$m6)$SE[1]
 
+
+####
+# Complete model with random effects instead of robest SE:
+####
+
+## M6: Cumulative AS (scaling some variables for better convergence)
+m6_re <- 
+    all_star ~ all_star_t_1 + all_star_cum_t_1 + scale(height) + pos + scale(age_0) +
+        I(scale(age_0)^2) + Black + scale(time) + I(scale(time)^2) + cyear + scale(pts_std_t_1) + scale(ast_std_t_1) +
+        scale(trb_std_t_1) + scale(min_played_std_t_1) + playoffs_t_1 + win_std_t_1 +
+        bigm_std_t_1 + scale(pts_std) + scale(ast_std) + scale(trb_std) + scale(min_played_std) +
+        playoffs + win_std + bigm_std + scale(pts_cum_t_1) + scale(ast_cum_t_1) +
+        scale(trb_cum_t_1) + scale(min_played_cum_t_1) + playoffs_cum_t_1 + win_cum_t_1 +
+        bigm_cum_t_1 + (1 | player_id)
+f6_re <- glmer(
+    m6_re, data = dta_comm[complete_comm2],
+    control = glmerControl(optimizer = "nlminbwrap", optCtrl = list(eval.max=500, iter.max=500)),
+    family = "binomial"
+)
+
+# uncomment to test for convergence issues 
+# by estimating with multiple optimizers
+# (this is very slow):
+# f6_re_all <- allFit(f6_re)
+
+ame6_re <- margins(f6_re,
+    variables = c("all_star_t_1", "all_star_cum_t_1"), data = dta_comm[complete_comm2][season>1985],
+    type="response", change = c(0, 1)
+)
+
+# Find players with large-magnitude random effects
+player_ranef <- ranef(f6_re)$player_id
+player_ranef$player_id <- rownames(player_ranef)
+player_ranef_lo <- head(player_ranef[order(player_ranef$`(Intercept)`),'player_id'], 20)
+player_ranef_hi <- head(player_ranef[order(-player_ranef$`(Intercept)`),'player_id'], 20)
+
+br_url <- "https://www.basketball-reference.com/players/%s/%s.html"
+sprintf(br_url, substr(player_ranef_lo,1,1), player_ranef_lo)
+sprintf(br_url, substr(player_ranef_hi,1,1), player_ranef_hi)
 
 ####
 # write to disk
@@ -489,7 +529,17 @@ export(bkvl_fits, file = 'models/original_fits.rds')
 export(bkvl_ames, file = 'models/original_ames.rds')
 export(corr_fits, file = 'models/corrected_bkvlinal_fits.rds')
 export(corr_ames, file = 'models/corrected_bkvlinal_ames.rds')
+export(list(f6_re=f6_re,ame6_re=ame6_re), file = 'models/randomeffects.rds')
 
+if(FALSE){
+    table3_sbs <- import(outpath)
+    bkvl_fits <- import('models/original_fits.rds')
+    bkvl_ames <- import('models/original_ames.rds')
+    corr_fits <- import('models/corrected_bkvlinal_fits.rds')
+    corr_ames <- import('models/corrected_bkvlinal_ames.rds')
+    f6_re <- import('models/randomeffects.rds')$f6_re
+    ame6_re <- import('models/randomeffects.rds')$ame6_re
+}
 
 ####
 # tables output
